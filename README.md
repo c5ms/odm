@@ -121,74 +121,21 @@ flowchart LR
 
 ## 快速开始
 
-### 在 Trae 中使用
+### 在 opencode/claude 中使用
 
-Trae 支持 Skills 目录，直接放入即可：
+直接放入即可：
 
 ```bash
 # 将本项目克隆到 Skills 目录
 cd ~/.trae/skills
-git clone https://github.com/xxx/odm.git m-modeling
+git clone https://github.com/c5ms/odm.git odm
+cp odm/skills path-to-your-app/.agents/skills
 
 # 使用
 /m-modeling 评审下订单模型设计
 /m-modeling 分析下 User 类的属性设计
 /m-modeling 设计一个发货单实体
 ```
-
-### 在 Cursor 中使用
-
-Cursor 使用 `.cursorrules` 文件配置：
-
-```bash
-# 方法1：直接复制 SKILL.md 内容到 .cursorrules
-cat skills/m-modeling/SKILL.md >> .cursorrules
-
-# 方法2：在 .cursorrules 中引用
-echo "参考 skills/m-modeling/ 目录下的建模指南" >> .cursorrules
-
-# 使用（Cursor 会自动识别规则）
-# 直接在对话中说：
-"用 ODM 六域建模方法评审下订单模型设计"
-```
-
-### 在 Claude 中使用
-
-Claude 使用 `CLAUDE.md` 文件配置：
-
-```bash
-# 在项目根目录创建 CLAUDE.md
-cat skills/m-modeling/SKILL.md > CLAUDE.md
-
-# 或追加到现有 CLAUDE.md
-cat skills/m-modeling/SKILL.md >> CLAUDE.md
-
-# 使用
-# 直接在对话中说：
-"用 ODM 方法分析下这个实体类的属性设计"
-```
-
-### 在 OpenCode 中使用
-
-OpenCode 支持自定义指令文件：
-
-```bash
-# 将 SKILL.md 内容添加到 OpenCode 的指令配置
-# 具体路径取决于 OpenCode 版本
-
-# 使用
-# 直接在对话中说：
-"按照六域归属表评审下这个表结构"
-```
-
-### 作为团队规范（不依赖 AI 工具）
-
-1. 读 [1.guide.md](skills/m-modeling/references/1.guide.md) —— 学六域 + 十条铁律 + 建模步骤
-2. 读 [4.demo.md](skills/m-modeling/references/4.demo.md) —— 看案例
-3. 建模时按步骤执行，输出属性归属表 + 状态矩阵
-4. 评审时用十条铁律逐条核对
-
-***
 
 ## 文档
 
