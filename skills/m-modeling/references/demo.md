@@ -4,6 +4,178 @@
 
 ---
 
+## 案例：一个真实的烂设计
+
+> 这是最"疼"的案例——一个看似正常的设计，业务迭代后彻底崩塌。
+
+### 反面：烂代码长什么样
+
+```java
+class ShipmentOrder {
+    String status;      // 草稿/已提交/已出货/已送达/已撤销/部分撤销/已出货且已撤销...
+    int qty;            // 有时是计划量，有时是实际量
+    BigDecimal amount;  // 有时含税，有时不含税
+    Date time;          // 有时是创建时间，有时是发货时间，有时是送达时间
+}
+```
+
+**看起来没问题？** 业务迭代三次后，彻底崩塌。
+
+### 推演：业务迭代如何击穿设计
+
+#### 第一轮：加"撤销"
+
+| 业务需求 | 代码改动 | 问题 |
+|----------|----------|------|
+| 用户要撤销订单 | 在 status 里加"已撤销" | 撤销插在哪？草稿→已提交→已撤销→已出货？顺序乱了 |
+| 已出货后还能撤销吗？ | 加"已出货且已撤销" | 状态爆炸开始 |
+| 撤销后要恢复？ | 加"已撤销已恢复" | 状态继续膨胀 |
+
+**结果**：status 从 4 个值变成 8 个值，if-else 从 3 个变成 15 个。
+
+#### 第二轮：加"部分出货"
+
+| 业务需求 | 代码改动 | 问题 |
+|----------|----------|------|
+| 订单可以分批出货 | qty 存啥？计划100，实际出了50 | qty 到底存计划还是实际？ |
+| 要查"还剩多少没出" | 写个计算字段 `remainingQty` | 每次查询都要算，性能差 |
+| 要查"计划vs实际偏差" | 没法查，历史被覆盖了 | 数据丢了 |
+
+**结果**：qty 字段语义模糊，报表查不出来，数据丢失。
+
+#### 第三轮：加"含税/不含税"
+
+| 业务需求 | 代码改动 | 问题 |
+|----------|----------|------|
+| 有的客户要含税价 | amount 有时含税，有时不含 | 字段语义混乱 |
+| 报表要分开统计 | 加个 `isTaxIncluded` 标记 | 又一个布尔字段 |
+| 税率变了要重算 | 没存税率，没法重算 | 业务逻辑藏在代码里 |
+
+**结果**：amount 字段变成"薛定谔的金额"，谁也不知道它代表什么。
+
+### 最终崩塌
+
+```java
+class ShipmentOrder {
+    String status;      // 12种状态，if-else 30+ 个
+    int qty;            // 语义不明，报表查不了
+    BigDecimal amount;  // 含税？不含税？谁知道
+    Date time;          // 创建？发货？送达？猜吧
+    boolean isTaxIncluded;    // 补救字段1
+    boolean isPartialShip;    // 补救字段2
+    boolean isRevoked;        // 补救字段3
+    int remainingQty;         // 补救字段4（计算字段）
+    BigDecimal taxRate;       // 补救字段5（后来加的）
+    // ... 还有更多补救字段
+}
+```
+
+**代码评审时**：
+- 新人看不懂：这字段啥意思？
+- 改一个字段：牵一发动全身
+- 加一个功能：不知道会崩哪里
+- **维护成本指数级上升**
+
+---
+
+### 正面：用 ODM 一步步拆
+
+#### Step 1：列出所有属性
+
+先把烂代码里的字段拆开，看看它们到底在说什么：
+
+| 原字段 | 实际含义 |
+|--------|----------|
+| status | 单据状态 + 物流状态 混在一起 |
+| qty | 计划数量 + 实际数量 混在一起 |
+| amount | 含税金额 + 不含税金额 混在一起 |
+| time | 创建时间 + 发货时间 + 送达时间 混在一起 |
+
+#### Step 2：按六域归属判定
+
+| 属性 | 问法 | 归属域 |
+|------|------|--------|
+| orderType | 这东西是什么？ | 身份域（本体） |
+| tenantId | 属于谁？ | 身份域（归属） |
+| customerId | 作用于谁？ | 身份域（去向） |
+| requirement | 要达成什么？ | 需求域 |
+| plannedQty | 预期多少？ | 计划域 |
+| deadline | 预期什么时候？ | 计划域 |
+| actualQty | 实际多少？ | 执行域 |
+| executor | 谁在做？ | 执行域 |
+| docStatus | 单据最终状态？ | 结果域 |
+| shipStatus | 物流最终状态？ | 结果域 |
+| completedAt | 什么时候完成？ | 结果域 |
+| maxAmount | 不能超过多少？ | 约束域 |
+
+#### Step 3：过十条铁律
+
+| 铁律 | 原设计命中？ | 改造方案 |
+|------|-------------|----------|
+| 1. 一个属性只属于一个域 | ✅ qty 跨计划/执行 | 拆成 plannedQty + actualQty |
+| 2. 不同业务的状态要分开 | ✅ status 混单据/物流 | 拆成 docStatus + shipStatus |
+| 3. 多个状态用组合 | ✅ 状态合并成链 | 用组合矩阵 |
+| 5. 结果只追加 | ✅ qty 覆盖历史 | 用出货流水表 |
+| 6. 计划和实际要分开 | ✅ qty 混用 | plannedQty / actualQty 分开 |
+| 7. 规则要写成属性 | ✅ 税率藏在代码 | taxRate 显式化 |
+
+#### Step 4：输出改造后的设计
+
+```java
+class ShipmentOrder {
+    // 身份域
+    String orderType;
+    String tenantId;
+    String customerId;
+    
+    // 需求域
+    String requirement;
+    
+    // 计划域
+    int plannedQty;
+    Date deadline;
+    
+    // 执行域
+    int actualQty;          // 实时更新
+    String executor;
+    
+    // 结果域
+    DocStatus docStatus;    // 草稿 | 已提交 | 已撤销
+    ShipStatus shipStatus;  // 未出货 | 已出货 | 已送达
+    Date completedAt;
+    
+    // 约束域
+    BigDecimal maxAmount;
+    BigDecimal taxRate;     // 显式化税率
+}
+
+// 出货流水表（结果域：只追加）
+class ShipmentRecord {
+    String orderId;
+    int shippedQty;
+    Date shippedAt;
+    String shippedBy;
+}
+```
+
+#### Step 5：验证改造效果
+
+| 业务场景 | 原设计 | 改造后 |
+|----------|--------|--------|
+| 加"撤销" | 状态爆炸，if-else 暴增 | docStatus 加一个值，组合矩阵扩展 |
+| 加"部分出货" | qty 语义混乱 | actualQty 实时更新，流水表追加 |
+| 查"计划vs实际偏差" | 没法查 | plannedQty - actualQty，一目了然 |
+| 税率变了要重算 | 没存税率 | taxRate 显式化，可重算 |
+| 报表统计含税/不含税 | amount 语义不明 | amount 含税，taxRate 可算不含税 |
+
+**改造后**：
+- 状态清晰：docStatus × shipStatus 组合矩阵
+- 数据完整：流水表追加，历史不丢
+- 语义明确：每个字段只有一个含义
+- **维护成本线性增长，而非指数爆炸**
+
+---
+
 ## 正面案例：订单状态
 
 订单状态：待支付、已支付、已发货。
