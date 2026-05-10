@@ -187,7 +187,7 @@ OpenCode 支持自定义指令文件：
 ### 作为团队规范（不依赖 AI 工具）
 
 1. 读 [1.guide.md](skills/m-modeling/references/1.guide.md) —— 学六域 + 十条铁律 + 建模步骤
-2. 读 [demo.md](skills/m-modeling/references/demo.md) —— 看案例
+2. 读 [4.demo.md](skills/m-modeling/references/4.demo.md) —— 看案例
 3. 建模时按步骤执行，输出属性归属表 + 状态矩阵
 4. 评审时用十条铁律逐条核对
 
@@ -217,7 +217,7 @@ odm/
             ├── 1.guide.md        # 主指南（必读）
             ├── 2.exceptions.md   # 排除特例
             ├── 3.complexity.md   # 复杂度测算
-            └── demo.md           # 案例演示
+            └── 4.demo.md         # 案例演示
 ```
 
 ---
