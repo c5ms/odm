@@ -33,12 +33,7 @@ flowchart TB
         S["结果域<br/>最终状态·最终值·时间点"]
     end
     
-    Foundation --> R
-    Foundation --> P
-    Foundation --> E
-    Foundation --> S
-    
-    R --> P --> E --> S
+    Foundation --> Business
 ```
 
 **核心原则**：每个属性只属于一个域，跨域必须拆分。
